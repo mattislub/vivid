@@ -10,8 +10,10 @@ app.use(cors());
 app.use(express.json());
 
 app.post('/api/contact', async (req, res) => {
+  console.log('Received contact form submission', req.body);
   const { name, email, subject, message } = req.body;
   if (!name || !email || !subject || !message) {
+    console.warn('Contact form missing fields', req.body);
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
@@ -33,9 +35,10 @@ app.post('/api/contact', async (req, res) => {
       subject: subject || `New message from ${name}`,
       text: `Name: ${name}\nEmail: ${email}\n\n${message}`
     });
+    console.log('Email sent successfully');
     res.status(200).json({ ok: true });
   } catch (err) {
-    console.error(err);
+    console.error('Error sending email', err);
     res.status(500).json({ error: 'Failed to send email' });
   }
 });
