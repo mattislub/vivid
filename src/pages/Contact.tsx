@@ -71,7 +71,7 @@ const Contact = () => {
                   </div>
                   <div>
                     <h3 className="text-white font-semibold">Email</h3>
-                    <p className="text-slate-300">hello@govividmedia.com</p>
+                    <p className="text-slate-300">Shragy@govividmedia.com</p>
                   </div>
                 </div>
                 
@@ -81,7 +81,7 @@ const Contact = () => {
                   </div>
                   <div>
                     <h3 className="text-white font-semibold">Phone</h3>
-                    <p className="text-slate-300">+1 (555) 123-4567</p>
+                    <p className="text-slate-300">+1 (657)888-4843</p>
                   </div>
                 </div>
                 
@@ -91,7 +91,8 @@ const Contact = () => {
                   </div>
                   <div>
                     <h3 className="text-white font-semibold">Location</h3>
-                    <p className="text-slate-300">New York, NY</p>
+                    <p className="text-slate-300">7 Perlman Dr<br>
+                      unit 218 <br>Spring Valley, NY 10977</p>
                   </div>
                 </div>
               </div>
