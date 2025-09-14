@@ -31,15 +31,16 @@ const Contact = () => {
       console.log('Received response from', response.url, 'status', response.status);
 
       if (!response.ok) {
-        console.error('Form submission failed', response.status);
-        throw new Error('Network response was not ok');
+        const errorText = await response.text();
+        throw new Error(`HTTP error! Status: ${response.status} - ${errorText}`);
       }
 
-      console.log('Form submission succeeded');
+      const result = await response.json();
+      console.log('Success:', result);
       alert('התודה! ההודעה נשלחה בהצלחה');
       setFormData({ name: '', email: '', subject: '', message: '' });
     } catch (error) {
-      console.error('Error submitting contact form', error);
+      console.error('שגיאה מפורטת:', error);
       alert('שליחת ההודעה נכשלה, נסה שוב מאוחר יותר');
     }
   };

@@ -6,7 +6,11 @@ import nodemailer from 'nodemailer';
 dotenv.config();
 
 const app = express();
-app.use(cors());
+const corsOptions = {
+  origin: process.env.FRONTEND_URL || 'https://your-frontend-domain.com',
+  credentials: true
+};
+app.use(cors(corsOptions));
 app.use(express.json());
 
 app.post('/api/contact', async (req, res) => {
