@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Mail, Phone, MapPin, Send, MessageCircle } from 'lucide-react';
+import { buildMailtoLink } from '../utils/email';
 
 const Contact = () => {
   const [formData, setFormData] = useState({
@@ -11,9 +12,9 @@ const Contact = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Form submitted:', formData);
-    // Handle form submission here
+    window.location.href = buildMailtoLink(formData);
     alert('התודה! ההודעה נשלחה בהצלחה');
+    setFormData({ name: '', email: '', subject: '', message: '' });
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
