@@ -1,10 +1,15 @@
 import express from 'express';
 import cors from 'cors';
 import nodemailer from 'nodemailer';
+import { Pool } from 'pg';
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
 
 app.post('/api/contact', async (req, res) => {
   const { name, email, subject, message } = req.body;
@@ -34,6 +39,18 @@ app.post('/api/contact', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to send email' });
+  }
+});
+
+app.get('/api/projects', async (_req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT id, title, category, description, image, tags, link, github FROM projects ORDER BY id'
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch projects' });
   }
 });
 
