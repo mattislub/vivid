@@ -24,12 +24,12 @@ const Home = () => {
         <div className="max-w-7xl mx-auto w-full">
           <div className="flex justify-center lg:justify-end">
             <div className="max-w-2xl text-center lg:mr-16">
-          <h1 className="text-5xl md:text-7xl lg:text-8xl font-chewy text-white mb-8 leading-tight">
+          <h1 className="text-5xl md:text-7xl lg:text-8xl font-chewy text-white mb-16 leading-tight">
             <span className="block text-white mb-2">Brainstorming</span>
-            <span className="text-3xl md:text-5xl lg:text-6xl text-slate-300">in progress</span>
+            <span className="block text-white text-5xl md:text-7xl lg:text-8xl">in progress</span>
           </h1>
           
-              <p className="text-xl md:text-2xl text-slate-300 mb-12 leading-relaxed font-knewave">
+              <p className="text-xl md:text-2xl text-slate-300 mb-12 leading-relaxed font-knewave mt-32">
             Where we brainstorm, to put you in the spotlight
           </p>
 
