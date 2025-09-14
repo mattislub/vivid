@@ -1,113 +1,41 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ExternalLink, Github, ArrowRight, Filter } from 'lucide-react';
+
+interface Project {
+  id: number;
+  title: string;
+  category: string;
+  description: string;
+  image: string;
+  tags: string[];
+  link: string;
+  github: string;
+}
 
 const Portfolio = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [categories, setCategories] = useState<string[]>(['all']);
 
-  const projects = [
-    {
-      id: 1,
-      title: 'Global Brand Campaign',
-      category: 'branding',
-      description: 'Complete brand identity and multi-channel campaign for international tech startup',
-      image: 'https://images.pexels.com/photos/196644/pexels-photo-196644.jpeg?auto=compress&cs=tinysrgb&w=600',
-      tags: ['Brand Strategy', 'Visual Identity', 'Campaign Management'],
-      link: '#',
-      github: '#'
-    },
-    {
-      id: 2,
-      title: 'Social Media Strategy',
-      category: 'social',
-      description: 'Comprehensive social media campaign that increased engagement by 300%',
-      image: 'https://images.pexels.com/photos/607812/pexels-photo-607812.jpeg?auto=compress&cs=tinysrgb&w=600',
-      tags: ['Social Media', 'Content Creation', 'Analytics'],
-      link: '#',
-      github: '#'
-    },
-    {
-      id: 3,
-      title: 'Product Launch Campaign',
-      category: 'campaigns',
-      description: 'Integrated marketing campaign for major product launch with 500% ROI',
-      image: 'https://images.pexels.com/photos/196644/pexels-photo-196644.jpeg?auto=compress&cs=tinysrgb&w=600',
-      tags: ['Product Launch', 'PR', 'Digital Advertising'],
-      link: '#',
-      github: '#'
-    },
-    {
-      id: 4,
-      title: 'Google Ads Optimization',
-      category: 'digital',
-      description: 'PPC campaign optimization that reduced cost-per-click by 40% while doubling conversions',
-      image: 'https://images.pexels.com/photos/230544/pexels-photo-230544.jpeg?auto=compress&cs=tinysrgb&w=600',
-      tags: ['Google Ads', 'PPC', 'Conversion Optimization'],
-      link: '#',
-      github: '#'
-    },
-    {
-      id: 5,
-      title: 'Influencer Marketing',
-      category: 'social',
-      description: 'Strategic influencer partnerships that generated 2M+ impressions and 15% sales increase',
-      image: 'https://images.pexels.com/photos/265087/pexels-photo-265087.jpeg?auto=compress&cs=tinysrgb&w=600',
-      tags: ['Influencer Marketing', 'Partnership Management', 'ROI Tracking'],
-      link: '#',
-      github: '#'
-    },
-    {
-      id: 6,
-      title: 'Email Marketing Automation',
-      category: 'digital',
-      description: 'Automated email sequences that increased customer retention by 45%',
-      image: 'https://images.pexels.com/photos/270408/pexels-photo-270408.jpeg?auto=compress&cs=tinysrgb&w=600',
-      tags: ['Email Marketing', 'Automation', 'Customer Retention'],
-      link: '#',
-      github: '#'
-    },
-    {
-      id: 7,
-      title: 'Video Marketing Campaign',
-      category: 'content',
-      description: 'Viral video series that reached 5M+ views and increased brand awareness by 200%',
-      image: 'https://images.pexels.com/photos/3153198/pexels-photo-3153198.jpeg?auto=compress&cs=tinysrgb&w=600',
-      tags: ['Video Production', 'Viral Marketing', 'Brand Awareness'],
-      link: '#',
-      github: '#'
-    },
-    {
-      id: 8,
-      title: 'SEO & Content Strategy',
-      category: 'digital',
-      description: 'Comprehensive SEO strategy that improved organic traffic by 250% in 6 months',
-      image: 'https://images.pexels.com/photos/270637/pexels-photo-270637.jpeg?auto=compress&cs=tinysrgb&w=600',
-      tags: ['SEO', 'Content Strategy', 'Organic Growth'],
-      link: '#',
-      github: '#'
-    },
-    {
-      id: 9,
-      title: 'Event Marketing',
-      category: 'campaigns',
-      description: 'Large-scale event promotion that sold out 5,000 tickets in 48 hours',
-      image: 'https://images.pexels.com/photos/1190298/pexels-photo-1190298.jpeg?auto=compress&cs=tinysrgb&w=600',
-      tags: ['Event Marketing', 'Ticket Sales', 'Promotion Strategy'],
-      link: '#',
-      github: '#'
-    }
-  ];
+  useEffect(() => {
+    const fetchProjects = async () => {
+      try {
+        const res = await fetch('/api/projects');
+        if (!res.ok) throw new Error('Failed to load projects');
+        const data: Project[] = await res.json();
+        setProjects(data);
+        const unique = Array.from(new Set(data.map(p => p.category)));
+        setCategories(['all', ...unique]);
+      } catch (err) {
+        console.error(err);
+      }
+    };
 
-  const categories = [
-    { id: 'all', label: 'All' },
-    { id: 'branding', label: 'Branding & Identity' },
-    { id: 'digital', label: 'Digital Marketing' },
-    { id: 'social', label: 'Social Media' },
-    { id: 'campaigns', label: 'Campaign Management' },
-    { id: 'content', label: 'Content Marketing' }
-  ];
+    fetchProjects();
+  }, []);
 
-  const filteredProjects = selectedCategory === 'all' 
-    ? projects 
+  const filteredProjects = selectedCategory === 'all'
+    ? projects
     : projects.filter(project => project.category === selectedCategory);
 
   return (
@@ -132,15 +60,17 @@ const Portfolio = () => {
           <div className="flex flex-wrap justify-center gap-2">
             {categories.map((category) => (
               <button
-                key={category.id}
-                onClick={() => setSelectedCategory(category.id)}
+                key={category}
+                onClick={() => setSelectedCategory(category)}
                 className={`px-6 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
-                  selectedCategory === category.id
+                  selectedCategory === category
                     ? 'bg-white text-slate-900 shadow-lg'
                     : 'bg-slate-700/50 text-slate-300 hover:bg-slate-600/50 hover:text-white'
                 }`}
               >
-                {category.label}
+                {category === 'all'
+                  ? 'All'
+                  : category.charAt(0).toUpperCase() + category.slice(1)}
               </button>
             ))}
           </div>

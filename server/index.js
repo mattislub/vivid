@@ -1,10 +1,30 @@
 import express from 'express';
 import cors from 'cors';
 import nodemailer from 'nodemailer';
+import { createClient } from '@supabase/supabase-js';
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+const supabase = createClient(
+  process.env.SUPABASE_URL || '',
+  process.env.SUPABASE_KEY || ''
+);
+
+app.get('/api/projects', async (req, res) => {
+  const { data, error } = await supabase
+    .from('projects')
+    .select('id, title, category, description, image, tags, link, github')
+    .order('id');
+
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to fetch projects' });
+  }
+
+  res.json(data);
+});
 
 app.post('/api/contact', async (req, res) => {
   const { name, email, subject, message } = req.body;
