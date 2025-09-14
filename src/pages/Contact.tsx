@@ -18,20 +18,25 @@ const Contact = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('Submitting contact form', formData);
     try {
       const response = await fetch('/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
       });
+      console.log('Received response from server', response.status);
 
       if (!response.ok) {
+        console.error('Form submission failed', response.status);
         throw new Error('Network response was not ok');
       }
 
+      console.log('Form submission succeeded');
       alert('התודה! ההודעה נשלחה בהצלחה');
       setFormData({ name: '', email: '', subject: '', message: '' });
-    } catch {
+    } catch (error) {
+      console.error('Error submitting contact form', error);
       alert('שליחת ההודעה נכשלה, נסה שוב מאוחר יותר');
     }
   };
