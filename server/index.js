@@ -10,6 +10,7 @@ app.use(cors());
 app.use(express.json());
 
 app.post('/api/contact', async (req, res) => {
+  console.log('Request reached server at', req.headers.host);
   console.log('Received contact form submission', req.body);
   const { name, email, subject, message } = req.body;
   if (!name || !email || !subject || !message) {

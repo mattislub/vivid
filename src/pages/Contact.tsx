@@ -8,6 +8,8 @@ interface ContactFormData {
   message: string;
 }
 
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://api.govividmedia.70-60.com').replace(/\/$/, '');
+
 const Contact = () => {
   const [formData, setFormData] = useState<ContactFormData>({
     name: '',
@@ -18,14 +20,15 @@ const Contact = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Submitting contact form', formData);
+    const endpoint = `${API_BASE_URL}/api/contact`;
+    console.log('Submitting contact form', formData, 'to', endpoint);
     try {
-      const response = await fetch('/api/contact', {
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
       });
-      console.log('Received response from server', response.status);
+      console.log('Received response from', response.url, 'status', response.status);
 
       if (!response.ok) {
         console.error('Form submission failed', response.status);
