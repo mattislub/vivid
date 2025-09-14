@@ -8,7 +8,7 @@ interface ContactFormData {
   message: string;
 }
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://api.govividmedia.70-60.com').replace(/\/$/, '');
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'https://api.govividmedia.70-60.com').replace(/\/$/, '');
 
 const Contact = () => {
   const [formData, setFormData] = useState<ContactFormData>({
