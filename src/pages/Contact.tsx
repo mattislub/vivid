@@ -96,8 +96,8 @@ const Contact = () => {
                   </div>
                   <div>
                     <h3 className="text-white font-semibold">Location</h3>
-                    <p className="text-slate-300">7 Perlman Dr<br>
-                      unit 218 <br>Spring Valley, NY 10977</p>
+                    <p className="text-slate-300">7 Perlman Dr<br />
+                      unit 218 <br />Spring Valley, NY 10977</p>
                   </div>
                 </div>
               </div>
