@@ -1,3 +1,4 @@
+// server/index.js
 import dotenv from 'dotenv';
 import express from 'express';
 import cors from 'cors';
@@ -7,74 +8,91 @@ dotenv.config();
 
 const app = express();
 
-// Simple CORS setup - allows all origins for testing
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  
-  if (req.method === 'OPTIONS') {
-    res.sendStatus(200);
-  } else {
-    next();
-  }
-});
+// --- CORS פשוט: מתאים כשאין cookies/credentials בצד לקוח ---
+app.use(cors({
+  origin: '*',
+  methods: ['GET','POST','PUT','DELETE','OPTIONS'],
+  allowedHeaders: ['Origin','X-Requested-With','Content-Type','Accept','Authorization'],
+  credentials: false
+}));
 
 app.use(express.json());
 
+// עוזר: חובה משתני סביבה
+const must = (k) => {
+  const v = process.env[k];
+  if (!v) throw new Error(`Missing required env: ${k}`);
+  return v;
+};
+
+// --- יצירת טרנספורטר SMTP ---
+let transporter;
+try {
+  transporter = nodemailer.createTransport({
+    host: must('SMTP_HOST'),
+    port: Number(must('SMTP_PORT')),         // 465 ל-secure=true, 587 ל-secure=false
+    secure: must('SMTP_SECURE') === 'true',  // 'true' או 'false' במפורש
+    auth: {
+      user: must('SMTP_USER'),
+      pass: must('SMTP_PASS'),
+    },
+    // אופציונלי: אם יש בעיות תעודה, ניתן לבטל אימות (עדיף שלא בפרודקשן)
+    // tls: { rejectUnauthorized: false },
+  });
+  await transporter.verify();
+  console.log('SMTP: ready');
+} catch (err) {
+  console.error('SMTP setup/verify failed:', err);
+  // אל תזרוק — תן ל-/health לעבוד, אבל POST יחזיר 503 מסודר
+}
+
+// --- Health ---
+app.get('/health', (_req, res) => {
+  res.status(200).json({
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    cors: 'enabled',
+    smtpReady: !!transporter
+  });
+});
+
+// --- /api/contact ---
 app.post('/api/contact', async (req, res) => {
   console.log('=== CONTACT FORM REQUEST ===');
-  console.log('Request reached server at', req.headers.host);
+  console.log('Host:', req.headers.host);
   console.log('Origin:', req.headers.origin);
-  console.log('Method:', req.method);
   console.log('Body:', req.body);
-  
-  const { name, email, subject, message } = req.body;
-  
+
+  const { name, email, subject, message } = req.body || {};
   if (!name || !email || !subject || !message) {
-    console.warn('Contact form missing fields', req.body);
-    return res.status(400).json({ error: 'Missing required fields' });
+    return res.status(400).json({ ok: false, error: 'Missing required fields' });
+  }
+  if (!transporter) {
+    return res.status(503).json({ ok: false, error: 'Mail transport not ready' });
   }
 
-  const transporter = nodemailer.createTransporter({
-    host: process.env.SMTP_HOST,
-    port: parseInt(process.env.SMTP_PORT || '587', 10),
-    secure: process.env.SMTP_SECURE === 'true',
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS
-    }
-  });
+  const from = process.env.SMTP_FROM || process.env.SMTP_USER;
+  const to   = process.env.CONTACT_RECIPIENT || process.env.SMTP_USER;
 
   try {
-    await transporter.sendMail({
-      from: process.env.SMTP_FROM || process.env.SMTP_USER,
-      to: process.env.CONTACT_RECIPIENT || process.env.SMTP_USER,
+    const info = await transporter.sendMail({
+      from,
+      to,
       replyTo: email,
       subject: subject || `New message from ${name}`,
       text: `Name: ${name}\nEmail: ${email}\n\n${message}`
     });
-    console.log('Email sent successfully');
-    res.status(200).json({ ok: true });
+    console.log('Email sent:', info.messageId);
+    res.json({ ok: true, id: info.messageId });
   } catch (err) {
-    console.error('Error sending email', err);
-    res.status(500).json({ error: 'Failed to send email' });
+    console.error('Error sending email:', err);
+    res.status(500).json({ ok: false, error: 'Failed to send email' });
   }
 });
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  console.log('Health check requested');
-  res.status(200).json({ 
-    status: 'OK', 
-    timestamp: new Date().toISOString(),
-    cors: 'enabled'
-  });
-});
-
-const PORT = process.env.PORT || 6001;
+const PORT = Number(process.env.PORT || 6001);
 app.listen(PORT, () => {
-  console.log(`=== EMAIL SERVER STARTED ===`);
-  console.log(`Server listening on port ${PORT}`);
-  console.log('CORS: Simple headers enabled for all origins');
+  console.log('=== EMAIL SERVER STARTED ===');
+  console.log(`Listening on port ${PORT}`);
+  console.log('CORS: simple headers enabled for all origins');
 });
