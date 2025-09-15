@@ -2,8 +2,26 @@
 import express from 'express';
 import cors from 'cors';
 import nodemailer from 'nodemailer';
+import fs from 'fs';
+import path from 'path';
 
 const app = express();
+
+// ===== Simple file storage for portfolio projects =====
+const dataFile = path.join(process.cwd(), 'server', 'portfolio.json');
+
+function readProjects() {
+  try {
+    const raw = fs.readFileSync(dataFile, 'utf-8');
+    return JSON.parse(raw);
+  } catch {
+    return [];
+  }
+}
+
+function writeProjects(projects) {
+  fs.writeFileSync(dataFile, JSON.stringify(projects, null, 2));
+}
 
 // ===== CORS (פשוט, ללא cookies) =====
 app.use(cors({
@@ -98,6 +116,36 @@ ${message}`,
     console.error('Error sending email:', err);
     res.status(500).json({ ok:false, error: 'Failed to send email' });
   }
+});
+
+// ===== Portfolio API =====
+app.get('/api/projects', (_req, res) => {
+  res.json(readProjects());
+});
+
+app.post('/api/projects', (req, res) => {
+  const secret = req.headers['x-admin-secret'];
+  if (secret !== process.env.ADMIN_PASSWORD) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const projects = readProjects();
+  const nextId = projects.reduce((max, p) => Math.max(max, p.id), 0) + 1;
+  const project = { id: nextId, ...(req.body || {}) };
+  projects.push(project);
+  writeProjects(projects);
+  res.json(project);
+});
+
+app.delete('/api/projects/:id', (req, res) => {
+  const secret = req.headers['x-admin-secret'];
+  if (secret !== process.env.ADMIN_PASSWORD) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const id = Number(req.params.id);
+  let projects = readProjects();
+  projects = projects.filter(p => p.id !== id);
+  writeProjects(projects);
+  res.json({ ok: true });
 });
 
 // ===== Start =====
