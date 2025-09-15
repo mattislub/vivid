@@ -81,16 +81,34 @@ app.post('/api/contact', async (req, res) => {
   const to   = process.env.CONTACT_RECIPIENT || process.env.SMTP_USER;
 
   try {
+    const plain = `Name: ${name}\nEmail: ${email}\nSubject: ${subject}\n\n${message}`;
+    const html = `
+    <div style="font-family:Arial, sans-serif; line-height:1.6; color:#1f2937;">
+      <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="max-width:600px;margin:auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+        <tr>
+          <td style="background:#6366f1;color:#ffffff;padding:16px 24px;">
+            <h2 style="margin:0;font-size:20px;">New Contact Message</h2>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:24px;">
+            <p style="margin:0 0 8px 0;"><strong>Name:</strong> ${name}</p>
+            <p style="margin:0 0 8px 0;"><strong>Email:</strong> ${email}</p>
+            <p style="margin:0 0 16px 0;"><strong>Subject:</strong> ${subject}</p>
+            <p style="margin:16px 0 0 0; white-space:pre-wrap;">${message}</p>
+          </td>
+        </tr>
+      </table>
+    </div>
+    `;
+
     const info = await transporter.sendMail({
       from,
       to,
       replyTo: email,
       subject: subject || `New message from ${name}`,
-      text:
-`Name: ${name}
-Email: ${email}
-
-${message}`,
+      text: plain,
+      html,
     });
     console.log('Mail sent:', info.messageId);
     res.json({ ok: true, id: info.messageId });
