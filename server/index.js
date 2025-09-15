@@ -7,7 +7,7 @@ dotenv.config();
 
 const app = express();
 
-// Very simple CORS setup - allows all origins for testing
+// Simple CORS setup - allows all origins for testing
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -20,29 +20,14 @@ app.use((req, res, next) => {
   }
 });
 
-app.use(cors(corsOptions));
 app.use(express.json());
 
-// Add explicit preflight handling
-app.use((req, res, next) => {
-  if (req.method === 'OPTIONS') {
-    console.log('Handling preflight request for:', req.path);
-    res.header('Access-Control-Allow-Origin', req.headers.origin);
-    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    return res.sendStatus(200);
-  }
-  next();
-});
-
-// Add a preflight handler for OPTIONS requests
-app.options('*', cors(corsOptions));
-
 app.post('/api/contact', async (req, res) => {
+  console.log('=== CONTACT FORM REQUEST ===');
   console.log('Request reached server at', req.headers.host);
   console.log('Origin:', req.headers.origin);
-  console.log('Received contact form submission', req.body);
+  console.log('Method:', req.method);
+  console.log('Body:', req.body);
   
   const { name, email, subject, message } = req.body;
   
@@ -79,11 +64,17 @@ app.post('/api/contact', async (req, res) => {
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
+  console.log('Health check requested');
+  res.status(200).json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    cors: 'enabled'
+  });
 });
 
 const PORT = process.env.PORT || 6001;
 app.listen(PORT, () => {
-  console.log(`Email server listening on port ${PORT}`);
-  console.log('CORS origins:', corsOptions.origin);
+  console.log(`=== EMAIL SERVER STARTED ===`);
+  console.log(`Server listening on port ${PORT}`);
+  console.log('CORS: Simple headers enabled for all origins');
 });
