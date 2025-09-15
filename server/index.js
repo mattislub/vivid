@@ -7,21 +7,50 @@ dotenv.config();
 
 const app = express();
 
-// Updated CORS configuration to allow your frontend domain
+// More permissive CORS configuration for debugging
 const corsOptions = {
-  origin: [
-    'https://govividmedia.70-60.com',
-    'http://localhost:3000', // for local development
-    'http://localhost:5173', // for Vite dev server
-    process.env.FRONTEND_URL
-  ].filter(Boolean), // Remove any undefined values
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      'https://govividmedia.70-60.com',
+      'http://localhost:3000',
+      'http://localhost:5173',
+      process.env.FRONTEND_URL
+    ].filter(Boolean);
+    
+    console.log('Request origin:', origin);
+    console.log('Allowed origins:', allowedOrigins);
+    
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    } else {
+      console.log('Origin not allowed by CORS:', origin);
+      return callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  optionsSuccessStatus: 200 // Some legacy browsers choke on 204
 };
 
 app.use(cors(corsOptions));
 app.use(express.json());
+
+// Add explicit preflight handling
+app.use((req, res, next) => {
+  if (req.method === 'OPTIONS') {
+    console.log('Handling preflight request for:', req.path);
+    res.header('Access-Control-Allow-Origin', req.headers.origin);
+    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    return res.sendStatus(200);
+  }
+  next();
+});
 
 // Add a preflight handler for OPTIONS requests
 app.options('*', cors(corsOptions));
