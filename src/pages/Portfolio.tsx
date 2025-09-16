@@ -45,7 +45,8 @@ const Portfolio = () => {
             <span className="text-white">Our</span> Success Stories
           </h1>
           <p className="text-xl text-slate-300 max-w-2xl mx-auto">
-            Explore our award-winning campaigns and marketing strategies that drive real results
+            <span className="block">Explore our award-winning campaigns and marketing strategies</span>
+            <span className="block">that drive real results</span>
           </p>
         </div>
 
