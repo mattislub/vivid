@@ -29,7 +29,7 @@ const Home = () => {
             <span className="block text-white text-5xl md:text-7xl lg:text-8xl">in progress</span>
           </h1>
           
-              <p className="text-xl md:text-2xl text-slate-300 mb-12 leading-relaxed font-knewave mt-32">
+              <p className="text-xl md:text-2xl text-slate-300 mb-12 leading-relaxed mt-32">
             Where we brainstorm, to put you in the spotlight
           </p>
 
