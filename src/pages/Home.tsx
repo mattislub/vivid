@@ -1,6 +1,5 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowDown } from 'lucide-react';
 
 const Home = () => {
   return (
@@ -63,14 +62,6 @@ const Home = () => {
           </div>
         </div>
       </div>
-
-        {/* Scroll indicator */}
-        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 animate-bounce">
-          <div className="flex flex-col items-center space-y-2 text-white/70">
-            <span className="text-sm">Scroll Down</span>
-            <ArrowDown size={20} />
-          </div>
-        </div>
 
       {/* Floating elements for visual interest */}
       <div className="absolute top-1/4 left-10 w-20 h-20 bg-white/20 rounded-full animate-bounce" style={{animationDelay: '0s', animationDuration: '3s'}}></div>
