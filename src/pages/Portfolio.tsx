@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ExternalLink, Github, ArrowRight, Filter } from 'lucide-react';
+import { buildApiUrl } from '../utils/api';
 
 type Project = {
   id: number;
@@ -17,25 +18,16 @@ const Portfolio = () => {
   const [projects, setProjects] = useState<Project[]>([]);
 
   useEffect(() => {
-    const endpoint = '/api/projects';
-    const resolvedUrl = (() => {
-      try {
-        return new URL(endpoint, window.location.origin).toString();
-      } catch (error) {
-        console.error('[Portfolio] Failed to resolve API URL', { endpoint, error });
-        return endpoint;
-      }
-    })();
+    const endpoint = buildApiUrl('/api/projects');
 
     console.log('[Portfolio] Attempting to fetch projects from server', {
       endpoint,
-      resolvedUrl,
     });
 
     fetch(endpoint)
       .then((res) => {
         console.log('[Portfolio] Received response from server', {
-          endpoint: resolvedUrl,
+          endpoint,
           status: res.status,
           ok: res.ok,
         });
@@ -48,14 +40,14 @@ const Portfolio = () => {
       })
       .then((data: Project[]) => {
         console.log('[Portfolio] Successfully loaded projects', {
-          endpoint: resolvedUrl,
+          endpoint,
           count: data.length,
         });
         setProjects(data);
       })
       .catch((error) => {
         console.error('[Portfolio] Failed to fetch projects from server', {
-          endpoint: resolvedUrl,
+          endpoint,
           error,
         });
         setProjects([]);
