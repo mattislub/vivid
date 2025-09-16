@@ -9,6 +9,11 @@ const app = express();
 
 // ===== Simple file storage for portfolio projects =====
 const dataFile = path.join(process.cwd(), 'server', 'portfolio.json');
+const uploadsDir = path.join(process.cwd(), 'server', 'uploads');
+
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
 
 function readProjects() {
   try {
@@ -23,14 +28,23 @@ function writeProjects(projects) {
   fs.writeFileSync(dataFile, JSON.stringify(projects, null, 2));
 }
 
+const requireAdmin = (req, res, next) => {
+  const secret = req.headers['x-admin-secret'];
+  if (secret !== process.env.ADMIN_PASSWORD) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  next();
+};
+
 // ===== CORS (פשוט, ללא cookies) =====
 app.use(cors({
   origin: '*',
   methods: ['GET','POST','PUT','DELETE','OPTIONS'],
-  allowedHeaders: ['Origin','X-Requested-With','Content-Type','Accept','Authorization'],
+  allowedHeaders: ['Origin','X-Requested-With','Content-Type','Accept','Authorization','x-admin-secret'],
   credentials: false
 }));
-app.use(express.json());
+app.use(express.json({ limit: '8mb' }));
+app.use('/uploads', express.static(uploadsDir));
 
 // ===== לוג קונפיג (ללא סיסמה) =====
 const smtpCfgPublic = {
@@ -141,11 +155,7 @@ app.get('/api/projects', (_req, res) => {
   res.json(readProjects());
 });
 
-app.post('/api/projects', (req, res) => {
-  const secret = req.headers['x-admin-secret'];
-  if (secret !== process.env.ADMIN_PASSWORD) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
+app.post('/api/projects', requireAdmin, (req, res) => {
   const projects = readProjects();
   const nextId = projects.reduce((max, p) => Math.max(max, p.id), 0) + 1;
   const project = { id: nextId, ...(req.body || {}) };
@@ -154,16 +164,83 @@ app.post('/api/projects', (req, res) => {
   res.json(project);
 });
 
-app.delete('/api/projects/:id', (req, res) => {
-  const secret = req.headers['x-admin-secret'];
-  if (secret !== process.env.ADMIN_PASSWORD) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
+app.delete('/api/projects/:id', requireAdmin, (req, res) => {
   const id = Number(req.params.id);
   let projects = readProjects();
   projects = projects.filter(p => p.id !== id);
   writeProjects(projects);
   res.json({ ok: true });
+});
+
+app.post('/api/uploads', requireAdmin, (req, res) => {
+  const { data, filename, mimeType } = req.body || {};
+
+  if (!data || typeof data !== 'string') {
+    return res.status(400).json({ error: 'Missing image data' });
+  }
+
+  if (mimeType && typeof mimeType === 'string' && !mimeType.startsWith('image/')) {
+    return res.status(400).json({ error: 'Only image uploads are allowed' });
+  }
+
+  const sanitizedBase64 = data.replace(/^data:[^;]+;base64,/, '');
+
+  let buffer;
+  try {
+    buffer = Buffer.from(sanitizedBase64, 'base64');
+  } catch (err) {
+    console.error('Failed to decode base64 image', err);
+    return res.status(400).json({ error: 'Invalid image encoding' });
+  }
+
+  if (!buffer || buffer.length === 0) {
+    return res.status(400).json({ error: 'Empty image payload' });
+  }
+
+  const sizeInMb = buffer.length / (1024 * 1024);
+  if (sizeInMb > 5) {
+    return res.status(413).json({ error: 'Image is too large. Maximum size is 5MB.' });
+  }
+
+  const safeOriginalName = typeof filename === 'string' && filename.length > 0
+    ? filename.replace(/[^a-z0-9.-]/gi, '_').toLowerCase()
+    : 'image';
+
+  const extensionFromName = path.extname(safeOriginalName);
+  const extensionFromMime = typeof mimeType === 'string' && mimeType.includes('/')
+    ? `.${mimeType.split('/')[1].split('+')[0]}`
+    : '';
+
+  let extension = extensionFromName || extensionFromMime || '.png';
+  if (!extension.startsWith('.')) {
+    extension = `.${extension}`;
+  }
+  if (!['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg'].includes(extension)) {
+    extension = '.png';
+  }
+
+  const uniqueName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${extension}`;
+  const filePath = path.join(uploadsDir, uniqueName);
+
+  try {
+    fs.writeFileSync(filePath, buffer);
+  } catch (err) {
+    console.error('Failed to save uploaded image', err);
+    return res.status(500).json({ error: 'Failed to save image' });
+  }
+
+  const urlPath = `/uploads/${uniqueName}`;
+  return res.json({ ok: true, url: urlPath, filename: uniqueName });
+});
+
+// ===== Error handler =====
+app.use((err, _req, res, next) => {
+  if (res.headersSent) {
+    return next(err);
+  }
+
+  console.error('Unhandled error:', err);
+  res.status(500).json({ error: 'Internal server error' });
 });
 
 // ===== Start =====
