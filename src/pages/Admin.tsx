@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { buildApiUrl } from '../utils/api';
 
 interface Project {
   id: number;
@@ -26,7 +27,8 @@ const Admin = () => {
   });
 
   const loadProjects = async () => {
-    const res = await fetch('/api/projects');
+    const endpoint = buildApiUrl('/api/projects');
+    const res = await fetch(endpoint);
     const data = await res.json();
     setProjects(data);
   };
@@ -49,7 +51,7 @@ const Admin = () => {
       ...form,
       tags: form.tags.split(',').map(t => t.trim()).filter(Boolean)
     };
-    await fetch('/api/projects', {
+    await fetch(buildApiUrl('/api/projects'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -62,7 +64,7 @@ const Admin = () => {
   };
 
   const deleteProject = async (id: number) => {
-    await fetch(`/api/projects/${id}`, {
+    await fetch(buildApiUrl(`/api/projects/${id}`), {
       method: 'DELETE',
       headers: { 'x-admin-secret': password }
     });

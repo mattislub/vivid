@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Mail, Phone, MapPin, Send, MessageCircle } from 'lucide-react';
+import { buildApiUrl } from '../utils/api';
 
 interface ContactFormData {
   name: string;
@@ -7,8 +8,6 @@ interface ContactFormData {
   subject: string;
   message: string;
 }
-
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'https://api.govividmedia.70-60.com').replace(/\/$/, '');
 
 const Contact = () => {
   const [formData, setFormData] = useState<ContactFormData>({
@@ -20,7 +19,7 @@ const Contact = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const endpoint = `${API_BASE_URL}/api/contact`;
+    const endpoint = buildApiUrl('/api/contact');
     console.log('Submitting contact form', formData, 'to', endpoint);
     try {
       const response = await fetch(endpoint, {
