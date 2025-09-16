@@ -12,9 +12,19 @@ const Home = () => {
           muted
           loop
           playsInline
-          className="w-full h-full object-cover"
+          className="hidden w-full h-full object-cover md:block"
         >
           <source src="/export 1.mp4" type="video/mp4" />
+          {/* Fallback gradient if video doesn't load */}
+        </video>
+        <video
+          autoPlay
+          muted
+          loop
+          playsInline
+          className="w-full h-full object-cover md:hidden"
+        >
+          <source src="/phone size.mp4" type="video/mp4" />
           {/* Fallback gradient if video doesn't load */}
         </video>
       </div>
