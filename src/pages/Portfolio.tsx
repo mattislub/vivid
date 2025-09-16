@@ -13,9 +13,16 @@ type Project = {
   github: string;
 };
 
+type Category = {
+  id: number;
+  value: string;
+  label: string;
+};
+
 const Portfolio = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [projects, setProjects] = useState<Project[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
 
   useEffect(() => {
     const endpoint = buildApiUrl('/api/projects');
@@ -49,22 +56,61 @@ const Portfolio = () => {
         console.error('[Portfolio] Failed to fetch projects from server', {
           endpoint,
           error,
+      });
+      setProjects([]);
+    });
+  }, []);
+
+  useEffect(() => {
+    const endpoint = buildApiUrl('/api/categories');
+
+    console.log('[Portfolio] Attempting to fetch categories from server', {
+      endpoint
+    });
+
+    fetch(endpoint)
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`Request failed with status ${res.status}`);
+        }
+
+        return res.json();
+      })
+      .then((data: Category[]) => {
+        const sorted = [...data].sort((a, b) => a.label.localeCompare(b.label));
+        console.log('[Portfolio] Successfully loaded categories', {
+          endpoint,
+          count: sorted.length
         });
-        setProjects([]);
+        setCategories(sorted);
+      })
+      .catch((error) => {
+        console.error('[Portfolio] Failed to fetch categories from server', {
+          endpoint,
+          error
+        });
+        setCategories([]);
       });
   }, []);
 
-  const categories = [
+  useEffect(() => {
+    if (selectedCategory === 'all') {
+      return;
+    }
+
+    const exists = categories.some((category) => category.value === selectedCategory);
+    if (!exists) {
+      setSelectedCategory('all');
+    }
+  }, [categories, selectedCategory]);
+
+  const filterOptions = [
     { id: 'all', label: 'All' },
-    { id: 'branding', label: 'Branding & Identity' },
-    { id: 'digital', label: 'Digital Marketing' },
-    { id: 'social', label: 'Social Media' },
-    { id: 'campaigns', label: 'Campaign Management' },
-    { id: 'content', label: 'Content Marketing' }
+    ...categories.map((category) => ({ id: category.value, label: category.label }))
   ];
 
-  const filteredProjects = selectedCategory === 'all' 
-    ? projects 
+  const filteredProjects = selectedCategory === 'all'
+    ? projects
     : projects.filter(project => project.category === selectedCategory);
 
   return (
@@ -88,7 +134,7 @@ const Portfolio = () => {
             <span className="font-medium">Filter by category:</span>
           </div>
           <div className="flex flex-wrap justify-center gap-2">
-            {categories.map((category) => (
+            {filterOptions.map((category) => (
               <button
                 key={category.id}
                 onClick={() => setSelectedCategory(category.id)}

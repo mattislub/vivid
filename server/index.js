@@ -9,10 +9,23 @@ import { fileURLToPath } from 'url';
 const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dataFile = path.join(__dirname, 'portfolio.json');
+const categoriesFile = path.join(__dirname, 'categories.json');
 const uploadsDir = path.join(process.cwd(), 'server', 'uploads');
+
+const defaultCategories = [
+  { id: 1, value: 'branding', label: 'Branding & Identity' },
+  { id: 2, value: 'digital', label: 'Digital Marketing' },
+  { id: 3, value: 'social', label: 'Social Media' },
+  { id: 4, value: 'campaigns', label: 'Campaign Management' },
+  { id: 5, value: 'content', label: 'Content Marketing' }
+];
 
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+if (!fs.existsSync(categoriesFile)) {
+  fs.writeFileSync(categoriesFile, JSON.stringify(defaultCategories, null, 2));
 }
 
 function readProjects() {
@@ -26,6 +39,24 @@ function readProjects() {
 
 function writeProjects(projects) {
   fs.writeFileSync(dataFile, JSON.stringify(projects, null, 2));
+}
+
+
+function readCategories() {
+  try {
+    const raw = fs.readFileSync(categoriesFile, 'utf-8');
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [...defaultCategories];
+    }
+    return parsed;
+  } catch {
+    return [...defaultCategories];
+  }
+}
+
+function writeCategories(categories) {
+  fs.writeFileSync(categoriesFile, JSON.stringify(categories, null, 2));
 }
 
 const resolveAdminPasswords = () => {
@@ -42,6 +73,7 @@ const resolveAdminPasswords = () => {
 };
 
 let hasWarnedAboutMissingAdminPassword = false;
+
 
 const requireAdmin = (req, res, next) => {
   const adminPasswords = resolveAdminPasswords();
@@ -196,11 +228,140 @@ app.post('/api/projects', requireAdmin, (req, res) => {
   res.json(project);
 });
 
+app.put('/api/projects/:id', requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) {
+    return res.status(400).json({ error: 'Invalid project id' });
+  }
+
+  const projects = readProjects();
+  const index = projects.findIndex((project) => project.id === id);
+  if (index === -1) {
+    return res.status(404).json({ error: 'Project not found' });
+  }
+
+  const updatedProject = { ...projects[index], ...(req.body || {}), id };
+  projects[index] = updatedProject;
+  writeProjects(projects);
+
+  res.json(updatedProject);
+});
+
 app.delete('/api/projects/:id', requireAdmin, (req, res) => {
   const id = Number(req.params.id);
   let projects = readProjects();
   projects = projects.filter(p => p.id !== id);
   writeProjects(projects);
+  res.json({ ok: true });
+});
+
+app.get('/api/categories', (_req, res) => {
+  const categories = readCategories();
+  res.json(categories);
+});
+
+app.post('/api/categories', requireAdmin, (req, res) => {
+  const { value, label } = req.body || {};
+
+  if (typeof value !== 'string' || !value.trim()) {
+    return res.status(400).json({ error: 'Category value is required' });
+  }
+
+  if (typeof label !== 'string' || !label.trim()) {
+    return res.status(400).json({ error: 'Category label is required' });
+  }
+
+  const categories = readCategories();
+  const trimmedValue = value.trim();
+  const trimmedLabel = label.trim();
+
+  const duplicate = categories.some((category) => category.value === trimmedValue);
+  if (duplicate) {
+    return res.status(409).json({ error: 'Category value already exists' });
+  }
+
+  const nextId = categories.reduce((max, category) => Math.max(max, category.id), 0) + 1;
+  const category = { id: nextId, value: trimmedValue, label: trimmedLabel };
+  categories.push(category);
+  writeCategories(categories);
+
+  res.json(category);
+});
+
+app.put('/api/categories/:id', requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) {
+    return res.status(400).json({ error: 'Invalid category id' });
+  }
+
+  const categories = readCategories();
+  const index = categories.findIndex((category) => category.id === id);
+  if (index === -1) {
+    return res.status(404).json({ error: 'Category not found' });
+  }
+
+  const current = categories[index];
+  const value = typeof req.body?.value === 'string' ? req.body.value.trim() : current.value;
+  const label = typeof req.body?.label === 'string' ? req.body.label.trim() : current.label;
+
+  if (!value) {
+    return res.status(400).json({ error: 'Category value is required' });
+  }
+
+  if (!label) {
+    return res.status(400).json({ error: 'Category label is required' });
+  }
+
+  const duplicate = categories.some((category) => category.id !== id && category.value === value);
+  if (duplicate) {
+    return res.status(409).json({ error: 'Category value already exists' });
+  }
+
+  const updatedCategory = { ...current, value, label };
+  categories[index] = updatedCategory;
+  writeCategories(categories);
+
+  if (current.value !== updatedCategory.value) {
+    const projects = readProjects();
+    let hasChanges = false;
+    const updatedProjects = projects.map((project) => {
+      if (project.category === current.value) {
+        hasChanges = true;
+        return { ...project, category: updatedCategory.value };
+      }
+      return project;
+    });
+
+    if (hasChanges) {
+      writeProjects(updatedProjects);
+    }
+  }
+
+  res.json(updatedCategory);
+});
+
+app.delete('/api/categories/:id', requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) {
+    return res.status(400).json({ error: 'Invalid category id' });
+  }
+
+  const categories = readCategories();
+  const index = categories.findIndex((category) => category.id === id);
+  if (index === -1) {
+    return res.status(404).json({ error: 'Category not found' });
+  }
+
+  const category = categories[index];
+  const projects = readProjects();
+  const inUse = projects.some((project) => project.category === category.value);
+  if (inUse) {
+    return res.status(400).json({ error: 'Cannot delete a category that is used by existing projects' });
+  }
+
+  categories.splice(index, 1);
+  writeCategories(categories);
+
   res.json({ ok: true });
 });
 
