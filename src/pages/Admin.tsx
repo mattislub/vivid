@@ -12,6 +12,12 @@ interface Project {
   github: string;
 }
 
+interface Category {
+  id: number;
+  value: string;
+  label: string;
+}
+
 type ProjectForm = {
   title: string;
   category: string;
@@ -21,14 +27,6 @@ type ProjectForm = {
   link: string;
   github: string;
 };
-
-const CATEGORY_OPTIONS = [
-  { value: 'branding', label: 'Branding & Identity' },
-  { value: 'digital', label: 'Digital Marketing' },
-  { value: 'social', label: 'Social Media' },
-  { value: 'campaigns', label: 'Campaign Management' },
-  { value: 'content', label: 'Content Marketing' }
-];
 
 const createEmptyForm = (): ProjectForm => ({
   title: '',
@@ -40,10 +38,17 @@ const createEmptyForm = (): ProjectForm => ({
   github: ''
 });
 
-const getCategoryLabel = (value: string) => {
-  const option = CATEGORY_OPTIONS.find((item) => item.value === value);
-  return option ? option.label : value;
+type CategoryForm = {
+  id: number | null;
+  value: string;
+  label: string;
 };
+
+const createEmptyCategoryForm = (): CategoryForm => ({
+  id: null,
+  value: '',
+  label: ''
+});
 
 const readFileAsBase64 = (file: File) =>
   new Promise<string>((resolve, reject) => {
@@ -80,6 +85,11 @@ const Admin: React.FC = () => {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoryForm, setCategoryForm] = useState<CategoryForm>(createEmptyCategoryForm);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(false);
+  const [isSavingCategory, setIsSavingCategory] = useState(false);
+  const [editingProjectId, setEditingProjectId] = useState<number | null>(null);
 
   const expectedPassword = import.meta.env.VITE_ADMIN_PASSWORD;
 
@@ -108,11 +118,39 @@ const Admin: React.FC = () => {
     }
   }, []);
 
+  const loadCategories = useCallback(async () => {
+    setIsLoadingCategories(true);
+    try {
+      const response = await fetch(buildApiUrl('/api/categories'));
+      if (!response.ok) {
+        throw new Error(`Failed to load categories (${response.status})`);
+      }
+
+      const data: Category[] = await response.json();
+      const sorted = [...data].sort((a, b) => a.label.localeCompare(b.label));
+      setCategories(sorted);
+    } catch (error) {
+      console.error('[Admin] Failed to load categories', error);
+      setErrorMessage(error instanceof Error ? error.message : 'Failed to load categories.');
+    } finally {
+      setIsLoadingCategories(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (authed) {
       loadProjects();
+      loadCategories();
     }
-  }, [authed, loadProjects]);
+  }, [authed, loadProjects, loadCategories]);
+
+  const getCategoryLabel = useCallback(
+    (value: string) => {
+      const option = categories.find((item) => item.value === value);
+      return option ? option.label : value;
+    },
+    [categories]
+  );
 
   const handleLogin = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -147,6 +185,26 @@ const Admin: React.FC = () => {
   ) => {
     const { value } = event.target;
     setForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleEditProject = (project: Project) => {
+    setStatusMessage('');
+    setErrorMessage('');
+    setEditingProjectId(project.id);
+    setForm({
+      title: project.title,
+      category: project.category,
+      description: project.description,
+      image: project.image,
+      tags: Array.isArray(project.tags) ? project.tags.join(', ') : '',
+      link: !project.link || project.link === '#' ? '' : project.link,
+      github: !project.github || project.github === '#' ? '' : project.github
+    });
+  };
+
+  const handleCancelEditProject = () => {
+    setEditingProjectId(null);
+    setForm(createEmptyForm());
   };
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -234,6 +292,8 @@ const Admin: React.FC = () => {
     }
 
     setIsSavingProject(true);
+    const isEditingProject = editingProjectId !== null;
+
     try {
       const payload = {
         ...form,
@@ -245,8 +305,13 @@ const Admin: React.FC = () => {
         github: form.github || '#'
       };
 
-      const response = await fetch(buildApiUrl('/api/projects'), {
-        method: 'POST',
+      const endpoint = isEditingProject
+        ? buildApiUrl(`/api/projects/${editingProjectId}`)
+        : buildApiUrl('/api/projects');
+      const method = isEditingProject ? 'PUT' : 'POST';
+
+      const response = await fetch(endpoint, {
+        method,
         headers: {
           'Content-Type': 'application/json',
           'x-admin-secret': password
@@ -258,16 +323,20 @@ const Admin: React.FC = () => {
       try {
         body = await response.json();
       } catch (parseError) {
-        console.error('[Admin] Failed to parse create response', parseError);
+        console.error('[Admin] Failed to parse project response', parseError);
       }
 
       if (!body) {
-        throw new Error(`Failed to add project (${response.status})`);
+        throw new Error(
+          `${isEditingProject ? 'Failed to update project' : 'Failed to add project'} (${response.status})`
+        );
       }
 
       if (!response.ok) {
         const errorResponse = (body as { error?: string }).error;
-        throw new Error(errorResponse || `Failed to add project (${response.status})`);
+        throw new Error(
+          errorResponse || `${isEditingProject ? 'Failed to update project' : 'Failed to add project'} (${response.status})`
+        );
       }
 
       if (typeof (body as Project).id !== 'number') {
@@ -275,15 +344,33 @@ const Admin: React.FC = () => {
       }
 
       const project = body as Project;
-      setProjects((prev) => [
-        { ...project, tags: Array.isArray(project.tags) ? project.tags : [] },
-        ...prev.filter((existing) => existing.id !== project.id)
-      ]);
-      setStatusMessage('Project added successfully.');
+      setProjects((prev) => {
+        const normalised = {
+          ...project,
+          tags: Array.isArray(project.tags) ? project.tags : []
+        };
+
+        if (isEditingProject) {
+          return prev
+            .map((existing) => (existing.id === project.id ? normalised : existing))
+            .sort((a, b) => b.id - a.id);
+        }
+
+        return [normalised, ...prev.filter((existing) => existing.id !== project.id)].sort((a, b) => b.id - a.id);
+      });
+
+      setStatusMessage(isEditingProject ? 'Project updated successfully.' : 'Project added successfully.');
       setForm(createEmptyForm());
+      setEditingProjectId(null);
     } catch (error) {
-      console.error('[Admin] Failed to add project', error);
-      setErrorMessage(error instanceof Error ? error.message : 'Failed to add project.');
+      console.error('[Admin] Failed to save project', error);
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : isEditingProject
+            ? 'Failed to update project.'
+            : 'Failed to add project.'
+      );
     } finally {
       setIsSavingProject(false);
     }
@@ -325,10 +412,170 @@ const Admin: React.FC = () => {
       }
 
       setProjects((prev) => prev.filter((project) => project.id !== projectId));
+      if (editingProjectId === projectId) {
+        handleCancelEditProject();
+      }
       setStatusMessage('Project deleted successfully.');
     } catch (error) {
       console.error('[Admin] Failed to delete project', error);
       setErrorMessage(error instanceof Error ? error.message : 'Failed to delete project.');
+    }
+  };
+
+  const handleCategoryFieldChange = (
+    field: 'value' | 'label'
+  ) => (event: React.ChangeEvent<HTMLInputElement>) => {
+    const { value } = event.target;
+    setCategoryForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleEditCategory = (category: Category) => {
+    setStatusMessage('');
+    setErrorMessage('');
+    setCategoryForm({ id: category.id, value: category.value, label: category.label });
+  };
+
+  const handleCancelCategoryEdit = () => {
+    setCategoryForm(createEmptyCategoryForm());
+  };
+
+  const handleCategorySubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setStatusMessage('');
+    setErrorMessage('');
+
+    const trimmedValue = categoryForm.value.trim();
+    const trimmedLabel = categoryForm.label.trim();
+
+    if (!trimmedLabel || !trimmedValue) {
+      setErrorMessage('Please fill in both the category label and value.');
+      return;
+    }
+
+    if (!password.trim()) {
+      setErrorMessage('Missing admin password. Please log in again.');
+      return;
+    }
+
+    setIsSavingCategory(true);
+    const isEditingCategory = categoryForm.id !== null;
+
+    try {
+      const payload = { value: trimmedValue, label: trimmedLabel };
+      const endpoint = isEditingCategory
+        ? buildApiUrl(`/api/categories/${categoryForm.id}`)
+        : buildApiUrl('/api/categories');
+      const method = isEditingCategory ? 'PUT' : 'POST';
+
+      const response = await fetch(endpoint, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-secret': password
+        },
+        body: JSON.stringify(payload)
+      });
+
+      let body: (Category & { error?: string }) | { error?: string } | null = null;
+      try {
+        body = await response.json();
+      } catch (parseError) {
+        console.error('[Admin] Failed to parse category response', parseError);
+      }
+
+      if (!body) {
+        throw new Error(
+          `${isEditingCategory ? 'Failed to update category' : 'Failed to add category'} (${response.status})`
+        );
+      }
+
+      if (!response.ok) {
+        const errorResponse = (body as { error?: string }).error;
+        throw new Error(
+          errorResponse || `${isEditingCategory ? 'Failed to update category' : 'Failed to add category'} (${response.status})`
+        );
+      }
+
+      if (typeof (body as Category).id !== 'number') {
+        throw new Error('Invalid response from server.');
+      }
+
+      const category = body as Category;
+      setCategories((prev) => {
+        const next = isEditingCategory
+          ? prev.map((existing) => (existing.id === category.id ? category : existing))
+          : [...prev, category];
+        return next.sort((a, b) => a.label.localeCompare(b.label));
+      });
+
+      if (isEditingCategory) {
+        await loadProjects();
+      }
+
+      setStatusMessage(isEditingCategory ? 'Category updated successfully.' : 'Category added successfully.');
+      setCategoryForm(createEmptyCategoryForm());
+    } catch (error) {
+      console.error('[Admin] Failed to save category', error);
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : isEditingCategory
+            ? 'Failed to update category.'
+            : 'Failed to add category.'
+      );
+    } finally {
+      setIsSavingCategory(false);
+    }
+  };
+
+  const handleCategoryDelete = async (categoryId: number) => {
+    if (typeof window !== 'undefined') {
+      const confirmed = window.confirm('Are you sure you want to delete this category?');
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    setStatusMessage('');
+    setErrorMessage('');
+
+    if (!password.trim()) {
+      setErrorMessage('Missing admin password. Please log in again.');
+      return;
+    }
+
+    setIsSavingCategory(true);
+
+    try {
+      const response = await fetch(buildApiUrl(`/api/categories/${categoryId}`), {
+        method: 'DELETE',
+        headers: {
+          'x-admin-secret': password
+        }
+      });
+
+      let payload: { ok?: boolean; error?: string } | null = null;
+      try {
+        payload = await response.json();
+      } catch (parseError) {
+        console.error('[Admin] Failed to parse category delete response', parseError);
+      }
+
+      if (!response.ok || (payload && payload.error)) {
+        throw new Error(payload?.error || `Failed to delete category (${response.status})`);
+      }
+
+      setCategories((prev) => prev.filter((category) => category.id !== categoryId));
+      if (categoryForm.id === categoryId) {
+        setCategoryForm(createEmptyCategoryForm());
+      }
+
+      setStatusMessage('Category deleted successfully.');
+    } catch (error) {
+      console.error('[Admin] Failed to delete category', error);
+      setErrorMessage(error instanceof Error ? error.message : 'Failed to delete category.');
+    } finally {
+      setIsSavingCategory(false);
     }
   };
 
@@ -384,6 +631,9 @@ const Admin: React.FC = () => {
   }
 
   const projectCount = projects.length;
+  const isEditingProject = editingProjectId !== null;
+  const isEditingCategory = categoryForm.id !== null;
+  const isCategoryFormValid = Boolean(categoryForm.label.trim() && categoryForm.value.trim());
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 py-16 px-4 text-white">
@@ -414,8 +664,12 @@ const Admin: React.FC = () => {
             className="space-y-6 rounded-3xl border border-slate-800/60 bg-slate-900/60 p-8 shadow-2xl shadow-slate-950/50 backdrop-blur-xl"
           >
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-white">Create a new project</h2>
-              <span className="text-xs uppercase tracking-[0.3em] text-slate-500">New Entry</span>
+              <h2 className="text-xl font-semibold text-white">
+                {isEditingProject ? 'Update project' : 'Create a new project'}
+              </h2>
+              <span className="text-xs uppercase tracking-[0.3em] text-slate-500">
+                {isEditingProject ? `Editing #${editingProjectId}` : 'New Entry'}
+              </span>
             </div>
 
             <div className="grid gap-5">
@@ -443,12 +697,17 @@ const Admin: React.FC = () => {
                     onChange={handleFieldChange('category')}
                   >
                     <option value="">Select a category</option>
-                    {CATEGORY_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
+                    {categories.map((option) => (
+                      <option key={option.id} value={option.value}>
                         {option.label}
                       </option>
                     ))}
                   </select>
+                  {!isLoadingCategories && categories.length === 0 && (
+                    <p className="text-xs text-rose-300">
+                      Add categories using the manager on the right before creating projects.
+                    </p>
+                  )}
                 </label>
               </div>
 
@@ -551,108 +810,247 @@ const Admin: React.FC = () => {
                 disabled={!isFormValid || isSavingProject || uploadingImage}
                 className="rounded-2xl bg-gradient-to-r from-emerald-400 to-cyan-400 px-6 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/40 transition-transform hover:scale-[1.01] hover:shadow-emerald-400/50 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isSavingProject ? 'Saving project…' : 'Add project'}
+                {isSavingProject
+                  ? isEditingProject
+                    ? 'Updating project…'
+                    : 'Saving project…'
+                  : isEditingProject
+                    ? 'Update project'
+                    : 'Add project'}
               </button>
+              {isEditingProject && (
+                <button
+                  type="button"
+                  onClick={handleCancelEditProject}
+                  className="rounded-2xl border border-slate-700 px-5 py-2 text-sm font-semibold text-slate-200 transition-colors hover:border-slate-500 hover:text-white"
+                >
+                  Cancel
+                </button>
+              )}
               <span className="text-xs uppercase tracking-[0.3em] text-slate-500">
                 Total: {projectCount}
               </span>
             </div>
           </form>
 
-          <section className="space-y-5 rounded-3xl border border-slate-800/60 bg-slate-900/40 p-6 shadow-xl shadow-slate-950/40 backdrop-blur-xl">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-white">Existing projects</h2>
-              <button
-                type="button"
-                onClick={loadProjects}
-                className="text-xs uppercase tracking-[0.3em] text-slate-500 transition-colors hover:text-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={isLoadingProjects}
-              >
-                {isLoadingProjects ? 'Refreshing…' : 'Refresh'}
-              </button>
-            </div>
-            <p className="text-sm text-slate-400">Review your live projects, open the public links or delete outdated case studies.</p>
+          <div className="space-y-5">
+            <section className="space-y-5 rounded-3xl border border-slate-800/60 bg-slate-900/40 p-6 shadow-xl shadow-slate-950/40 backdrop-blur-xl">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-white">Existing projects</h2>
+                <button
+                  type="button"
+                  onClick={loadProjects}
+                  className="text-xs uppercase tracking-[0.3em] text-slate-500 transition-colors hover:text-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={isLoadingProjects}
+                >
+                  {isLoadingProjects ? 'Refreshing…' : 'Refresh'}
+                </button>
+              </div>
+              <p className="text-sm text-slate-400">Review your live projects, open the public links or delete outdated case studies.</p>
 
-            <div className="max-h-[600px] space-y-4 overflow-y-auto pr-1">
-              {isLoadingProjects && projects.length === 0 ? (
-                <div className="animate-pulse text-sm text-slate-400">Loading projects…</div>
-              ) : projects.length === 0 ? (
-                <div className="text-sm text-slate-400">No projects yet. Add your first success story.</div>
-              ) : (
-                projects.map((project) => (
-                  <article
-                    key={project.id}
-                    className="overflow-hidden rounded-2xl border border-slate-800/60 bg-slate-900/60 shadow-lg shadow-slate-950/30 transition-shadow hover:border-emerald-400/50 hover:shadow-emerald-500/20"
+              <div className="max-h-[600px] space-y-4 overflow-y-auto pr-1">
+                {isLoadingProjects && projects.length === 0 ? (
+                  <div className="animate-pulse text-sm text-slate-400">Loading projects…</div>
+                ) : projects.length === 0 ? (
+                  <div className="text-sm text-slate-400">No projects yet. Add your first success story.</div>
+                ) : (
+                  projects.map((project) => (
+                    <article
+                      key={project.id}
+                      className="overflow-hidden rounded-2xl border border-slate-800/60 bg-slate-900/60 shadow-lg shadow-slate-950/30 transition-shadow hover:border-emerald-400/50 hover:shadow-emerald-500/20"
+                    >
+                      <div className="h-40 w-full overflow-hidden bg-slate-800/60">
+                        <img
+                          src={project.image}
+                          alt={project.title}
+                          className="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
+                        />
+                      </div>
+                      <div className="space-y-3 p-5">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <h3 className="text-lg font-semibold text-white">{project.title}</h3>
+                            <p className="text-sm text-slate-400">{project.description}</p>
+                          </div>
+                          <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-emerald-200">
+                            {getCategoryLabel(project.category)}
+                          </span>
+                        </div>
+
+                        {project.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {project.tags.map((tag) => (
+                              <span
+                                key={tag}
+                                className="rounded-full border border-slate-700 bg-slate-800/80 px-3 py-1 text-xs text-slate-300"
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between pt-2">
+                          <div className="flex flex-col text-xs text-slate-500">
+                            {project.link && project.link !== '#' && (
+                              <a
+                                href={project.link}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="transition-colors hover:text-emerald-300"
+                              >
+                                Live link
+                              </a>
+                            )}
+                            {project.github && project.github !== '#' && (
+                              <a
+                                href={project.github}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="transition-colors hover:text-emerald-300"
+                              >
+                                Repository
+                              </a>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-4">
+                            <button
+                              type="button"
+                              onClick={() => handleEditProject(project)}
+                              className="text-sm font-medium text-emerald-300 transition-colors hover:text-emerald-200"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteProject(project.id)}
+                              className="text-sm font-medium text-rose-300 transition-colors hover:text-rose-200"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </article>
+                  ))
+                )}
+              </div>
+            </section>
+
+            <section className="space-y-5 rounded-3xl border border-slate-800/60 bg-slate-900/40 p-6 shadow-xl shadow-slate-950/40 backdrop-blur-xl">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-white">Manage categories</h2>
+                <button
+                  type="button"
+                  onClick={loadCategories}
+                  className="text-xs uppercase tracking-[0.3em] text-slate-500 transition-colors hover:text-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={isLoadingCategories}
+                >
+                  {isLoadingCategories ? 'Refreshing…' : 'Refresh'}
+                </button>
+              </div>
+              <p className="text-sm text-slate-400">Create, rename or remove portfolio categories used across the site.</p>
+
+              <form onSubmit={handleCategorySubmit} className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="flex flex-col gap-2">
+                    <span className="text-sm font-medium text-slate-200">
+                      Display name <span className="text-rose-400">*</span>
+                    </span>
+                    <input
+                      type="text"
+                      className="w-full rounded-2xl border border-slate-700 bg-slate-950/60 px-4 py-3 text-sm text-white placeholder-slate-500 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                      placeholder="e.g. Social Media"
+                      value={categoryForm.label}
+                      onChange={handleCategoryFieldChange('label')}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-2">
+                    <span className="text-sm font-medium text-slate-200">
+                      Value / slug <span className="text-rose-400">*</span>
+                    </span>
+                    <input
+                      type="text"
+                      className="w-full rounded-2xl border border-slate-700 bg-slate-950/60 px-4 py-3 text-sm text-white placeholder-slate-500 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                      placeholder="e.g. social"
+                      value={categoryForm.value}
+                      onChange={handleCategoryFieldChange('value')}
+                    />
+                  </label>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="submit"
+                    disabled={!isCategoryFormValid || isSavingCategory}
+                    className="rounded-2xl bg-gradient-to-r from-emerald-400 to-cyan-400 px-5 py-2 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/40 transition-transform hover:scale-[1.01] hover:shadow-emerald-400/50 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    <div className="h-40 w-full overflow-hidden bg-slate-800/60">
-                      <img
-                        src={project.image}
-                        alt={project.title}
-                        className="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
-                      />
-                    </div>
-                    <div className="space-y-3 p-5">
-                      <div className="flex items-start justify-between gap-3">
+                    {isSavingCategory
+                      ? isEditingCategory
+                        ? 'Updating…'
+                        : 'Adding…'
+                      : isEditingCategory
+                        ? 'Update category'
+                        : 'Add category'}
+                  </button>
+                  {isEditingCategory && (
+                    <button
+                      type="button"
+                      onClick={handleCancelCategoryEdit}
+                      className="rounded-2xl border border-slate-700 px-5 py-2 text-sm font-semibold text-slate-200 transition-colors hover:border-slate-500 hover:text-white"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                  <span className="text-xs text-slate-500">
+                    These values appear in filters and project badges.
+                  </span>
+                </div>
+              </form>
+
+              <div className="max-h-60 space-y-3 overflow-y-auto pr-1">
+                {isLoadingCategories && categories.length === 0 ? (
+                  <div className="animate-pulse text-sm text-slate-400">Loading categories…</div>
+                ) : categories.length === 0 ? (
+                  <div className="text-sm text-slate-400">No categories yet. Add your first category above.</div>
+                ) : (
+                  categories.map((category) => {
+                    const isActive = categoryForm.id === category.id;
+                    return (
+                      <div
+                        key={category.id}
+                        className={`flex items-center justify-between rounded-2xl border bg-slate-900/60 px-4 py-3 shadow-lg shadow-slate-950/20 transition-colors ${
+                          isActive ? 'border-emerald-400/50' : 'border-slate-800/60'
+                        }`}
+                      >
                         <div>
-                          <h3 className="text-lg font-semibold text-white">{project.title}</h3>
-                          <p className="text-sm text-slate-400">{project.description}</p>
+                          <p className="text-sm font-medium text-white">{category.label}</p>
+                          <p className="text-xs text-slate-400">Slug: {category.value}</p>
                         </div>
-                        <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-emerald-200">
-                          {getCategoryLabel(project.category)}
-                        </span>
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => handleEditCategory(category)}
+                            className="text-xs font-medium text-emerald-300 transition-colors hover:text-emerald-200"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleCategoryDelete(category.id)}
+                            disabled={isSavingCategory}
+                            className="text-xs font-medium text-rose-300 transition-colors hover:text-rose-200 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </div>
-
-                      {project.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-2">
-                          {project.tags.map((tag) => (
-                            <span
-                              key={tag}
-                              className="rounded-full border border-slate-700 bg-slate-800/80 px-3 py-1 text-xs text-slate-300"
-                            >
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-
-                      <div className="flex items-center justify-between pt-2">
-                        <div className="flex flex-col text-xs text-slate-500">
-                          {project.link && project.link !== '#' && (
-                            <a
-                              href={project.link}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="transition-colors hover:text-emerald-300"
-                            >
-                              Live link
-                            </a>
-                          )}
-                          {project.github && project.github !== '#' && (
-                            <a
-                              href={project.github}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="transition-colors hover:text-emerald-300"
-                            >
-                              Repository
-                            </a>
-                          )}
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteProject(project.id)}
-                          className="text-sm font-medium text-rose-300 transition-colors hover:text-rose-200"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  </article>
-                ))
-              )}
-            </div>
-          </section>
+                    );
+                  })
+                )}
+              </div>
+            </section>
+          </div>
         </div>
       </div>
     </div>

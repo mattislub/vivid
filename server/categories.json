@@ -1,0 +1,7 @@
+[
+  { "id": 1, "value": "branding", "label": "Branding & Identity" },
+  { "id": 2, "value": "digital", "label": "Digital Marketing" },
+  { "id": 3, "value": "social", "label": "Social Media" },
+  { "id": 4, "value": "campaigns", "label": "Campaign Management" },
+  { "id": 5, "value": "content", "label": "Content Marketing" }
+]
