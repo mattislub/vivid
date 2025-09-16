@@ -17,10 +17,49 @@ const Portfolio = () => {
   const [projects, setProjects] = useState<Project[]>([]);
 
   useEffect(() => {
-    fetch('/api/projects')
-      .then(res => res.json())
-      .then(data => setProjects(data))
-      .catch(() => setProjects([]));
+    const endpoint = '/api/projects';
+    const resolvedUrl = (() => {
+      try {
+        return new URL(endpoint, window.location.origin).toString();
+      } catch (error) {
+        console.error('[Portfolio] Failed to resolve API URL', { endpoint, error });
+        return endpoint;
+      }
+    })();
+
+    console.log('[Portfolio] Attempting to fetch projects from server', {
+      endpoint,
+      resolvedUrl,
+    });
+
+    fetch(endpoint)
+      .then((res) => {
+        console.log('[Portfolio] Received response from server', {
+          endpoint: resolvedUrl,
+          status: res.status,
+          ok: res.ok,
+        });
+
+        if (!res.ok) {
+          throw new Error(`Request failed with status ${res.status}`);
+        }
+
+        return res.json();
+      })
+      .then((data: Project[]) => {
+        console.log('[Portfolio] Successfully loaded projects', {
+          endpoint: resolvedUrl,
+          count: data.length,
+        });
+        setProjects(data);
+      })
+      .catch((error) => {
+        console.error('[Portfolio] Failed to fetch projects from server', {
+          endpoint: resolvedUrl,
+          error,
+        });
+        setProjects([]);
+      });
   }, []);
 
   const categories = [
