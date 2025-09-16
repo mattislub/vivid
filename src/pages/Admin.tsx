@@ -1,15 +1,6 @@
 import React, { useState, useEffect } from 'react';
-
-interface Project {
-  id: number;
-  title: string;
-  category: string;
-  description: string;
-  image: string;
-  tags: string[];
-  link: string;
-  github: string;
-}
+import type { Project } from '../types/project';
+import { fetchJson, resolveApiUrl } from '../lib/api';
 
 const Admin = () => {
   const [password, setPassword] = useState('');
@@ -26,9 +17,19 @@ const Admin = () => {
   });
 
   const loadProjects = async () => {
-    const res = await fetch('/api/projects');
-    const data = await res.json();
-    setProjects(data);
+    const endpoint = '/api/projects';
+    const resolvedUrl = resolveApiUrl(endpoint);
+
+    try {
+      const data = await fetchJson<Project[]>(endpoint);
+      setProjects(data);
+    } catch (error) {
+      console.error('[Admin] Failed to load projects', {
+        endpoint: resolvedUrl,
+        error,
+      });
+      setProjects([]);
+    }
   };
 
   useEffect(() => {
@@ -49,24 +50,42 @@ const Admin = () => {
       ...form,
       tags: form.tags.split(',').map(t => t.trim()).filter(Boolean)
     };
-    await fetch('/api/projects', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-admin-secret': password
-      },
-      body: JSON.stringify(body)
-    });
-    setForm({ title: '', category: '', description: '', image: '', tags: '', link: '', github: '' });
-    loadProjects();
+    try {
+      const response = await fetch(resolveApiUrl('/api/projects'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-secret': password,
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Request failed with status ${response.status}`);
+      }
+
+      setForm({ title: '', category: '', description: '', image: '', tags: '', link: '', github: '' });
+      loadProjects();
+    } catch (error) {
+      console.error('[Admin] Failed to add project', error);
+    }
   };
 
   const deleteProject = async (id: number) => {
-    await fetch(`/api/projects/${id}`, {
-      method: 'DELETE',
-      headers: { 'x-admin-secret': password }
-    });
-    loadProjects();
+    try {
+      const response = await fetch(resolveApiUrl(`/api/projects/${id}`), {
+        method: 'DELETE',
+        headers: { 'x-admin-secret': password },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Request failed with status ${response.status}`);
+      }
+
+      loadProjects();
+    } catch (error) {
+      console.error('[Admin] Failed to delete project', error);
+    }
   };
 
   if (!authed) {
