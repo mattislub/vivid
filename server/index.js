@@ -28,11 +28,43 @@ function writeProjects(projects) {
   fs.writeFileSync(dataFile, JSON.stringify(projects, null, 2));
 }
 
+const resolveAdminPasswords = () => {
+  const candidates = [process.env.ADMIN_PASSWORD, process.env.VITE_ADMIN_PASSWORD];
+  const normalized = new Set();
+
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim().length > 0) {
+      normalized.add(candidate);
+    }
+  }
+
+  return Array.from(normalized);
+};
+
+let hasWarnedAboutMissingAdminPassword = false;
+
 const requireAdmin = (req, res, next) => {
-  const secret = req.headers['x-admin-secret'];
-  if (secret !== process.env.ADMIN_PASSWORD) {
+  const adminPasswords = resolveAdminPasswords();
+
+  if (adminPasswords.length === 0) {
+    if (!hasWarnedAboutMissingAdminPassword) {
+      console.warn('ADMIN_PASSWORD is not configured. Admin routes are accessible without authentication.');
+      hasWarnedAboutMissingAdminPassword = true;
+    }
+    return next();
+  }
+
+  const secretHeader = req.headers['x-admin-secret'];
+  const providedSecret = Array.isArray(secretHeader) ? secretHeader[0] : secretHeader;
+
+  if (typeof providedSecret !== 'string' || providedSecret.trim().length === 0) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
+
+  if (!adminPasswords.includes(providedSecret)) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
   next();
 };
 
