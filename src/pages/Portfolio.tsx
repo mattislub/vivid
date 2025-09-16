@@ -1,8 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { ExternalLink, Github, ArrowRight, Filter } from 'lucide-react';
-import type { Project } from '../types/project';
-import { fallbackProjects } from '../data/portfolio';
-import { fetchJson, resolveApiUrl } from '../lib/api';
+
+type Project = {
+  id: number;
+  title: string;
+  category: string;
+  description: string;
+  image: string;
+  tags: string[];
+  link: string;
+  github: string;
+};
 
 const Portfolio = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -10,34 +18,48 @@ const Portfolio = () => {
 
   useEffect(() => {
     const endpoint = '/api/projects';
-    const resolvedUrl = resolveApiUrl(endpoint);
+    const resolvedUrl = (() => {
+      try {
+        return new URL(endpoint, window.location.origin).toString();
+      } catch (error) {
+        console.error('[Portfolio] Failed to resolve API URL', { endpoint, error });
+        return endpoint;
+      }
+    })();
 
     console.log('[Portfolio] Attempting to fetch projects from server', {
       endpoint,
       resolvedUrl,
     });
 
-    const loadProjects = async () => {
-      try {
-        const data = await fetchJson<Project[]>(endpoint);
+    fetch(endpoint)
+      .then((res) => {
+        console.log('[Portfolio] Received response from server', {
+          endpoint: resolvedUrl,
+          status: res.status,
+          ok: res.ok,
+        });
+
+        if (!res.ok) {
+          throw new Error(`Request failed with status ${res.status}`);
+        }
+
+        return res.json();
+      })
+      .then((data: Project[]) => {
         console.log('[Portfolio] Successfully loaded projects', {
           endpoint: resolvedUrl,
           count: data.length,
         });
         setProjects(data);
-      } catch (error) {
+      })
+      .catch((error) => {
         console.error('[Portfolio] Failed to fetch projects from server', {
           endpoint: resolvedUrl,
           error,
         });
-        console.warn('[Portfolio] Falling back to bundled portfolio data', {
-          count: fallbackProjects.length,
-        });
-        setProjects(fallbackProjects);
-      }
-    };
-
-    void loadProjects();
+        setProjects([]);
+      });
   }, []);
 
   const categories = [
