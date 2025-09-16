@@ -1,16 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { ExternalLink, Github, ArrowRight, Filter } from 'lucide-react';
-
-type Project = {
-  id: number;
-  title: string;
-  category: string;
-  description: string;
-  image: string;
-  tags: string[];
-  link: string;
-  github: string;
-};
+import type { Project } from '../types/project';
+import { fallbackProjects } from '../data/portfolio';
+import { fetchJson, resolveApiUrl } from '../lib/api';
 
 const Portfolio = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -18,48 +10,34 @@ const Portfolio = () => {
 
   useEffect(() => {
     const endpoint = '/api/projects';
-    const resolvedUrl = (() => {
-      try {
-        return new URL(endpoint, window.location.origin).toString();
-      } catch (error) {
-        console.error('[Portfolio] Failed to resolve API URL', { endpoint, error });
-        return endpoint;
-      }
-    })();
+    const resolvedUrl = resolveApiUrl(endpoint);
 
     console.log('[Portfolio] Attempting to fetch projects from server', {
       endpoint,
       resolvedUrl,
     });
 
-    fetch(endpoint)
-      .then((res) => {
-        console.log('[Portfolio] Received response from server', {
-          endpoint: resolvedUrl,
-          status: res.status,
-          ok: res.ok,
-        });
-
-        if (!res.ok) {
-          throw new Error(`Request failed with status ${res.status}`);
-        }
-
-        return res.json();
-      })
-      .then((data: Project[]) => {
+    const loadProjects = async () => {
+      try {
+        const data = await fetchJson<Project[]>(endpoint);
         console.log('[Portfolio] Successfully loaded projects', {
           endpoint: resolvedUrl,
           count: data.length,
         });
         setProjects(data);
-      })
-      .catch((error) => {
+      } catch (error) {
         console.error('[Portfolio] Failed to fetch projects from server', {
           endpoint: resolvedUrl,
           error,
         });
-        setProjects([]);
-      });
+        console.warn('[Portfolio] Falling back to bundled portfolio data', {
+          count: fallbackProjects.length,
+        });
+        setProjects(fallbackProjects);
+      }
+    };
+
+    void loadProjects();
   }, []);
 
   const categories = [
