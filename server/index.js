@@ -4,11 +4,13 @@ import cors from 'cors';
 import nodemailer from 'nodemailer';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
 const app = express();
 
 // ===== Simple file storage for portfolio projects =====
-const dataFile = path.join(process.cwd(), 'server', 'portfolio.json');
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const dataFile = path.join(__dirname, 'portfolio.json');
 
 function readProjects() {
   try {
