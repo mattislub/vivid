@@ -440,7 +440,7 @@ app.use((err, _req, res, next) => {
 });
 
 // ===== Start =====
-const PORT = Number(process.env.PORT || 6001);
+const PORT = Number(process.env.PORT || 3601);
 app.listen(PORT, () => {
   console.log('=== EMAIL SERVER STARTED ===');
   console.log(`Server listening on port ${PORT}`);
