@@ -1,7 +1,5 @@
 // server/index.js
 import dotenv from 'dotenv';
-dotenv.config();
-
 import express from 'express';
 import cors from 'cors';
 import nodemailer from 'nodemailer';
@@ -9,8 +7,12 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// לטעון את .env מהשורש של הפרויקט (תיקיית govividmedia)
+dotenv.config({ path: path.join(__dirname, '..', '.env') });
+
+const app = express();
 const dataFile = path.join(__dirname, 'portfolio.json');
 const categoriesFile = path.join(__dirname, 'categories.json');
 const uploadsDir = path.join(process.cwd(), 'server', 'uploads');
